@@ -156,23 +156,35 @@ export default function FlipkartFlow() {
             ) : (
               <>
                 <div className="mt-4 flex flex-wrap gap-1.5">
-                  {result.pages.map((p) => (
-                    <span
-                      key={p.pageNumber}
-                      title={
-                        p.detected
-                          ? `Page ${p.pageNumber}: label kept, invoice removed`
-                          : `Page ${p.pageNumber}: separator not found — full page kept`
-                      }
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums ${
-                        p.detected
-                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                          : "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-                      }`}
-                    >
-                      p{p.pageNumber} {p.detected ? "✓ label" : "⚠ full page"}
-                    </span>
-                  ))}
+                  {result.pages.map((p) => {
+                    const state = !p.detected
+                      ? "full"
+                      : p.tightened
+                        ? "tight"
+                        : "wide";
+                    return (
+                      <span
+                        key={p.pageNumber}
+                        title={
+                          state === "tight"
+                            ? `Page ${p.pageNumber}: tight label box kept, invoice removed`
+                            : state === "wide"
+                              ? `Page ${p.pageNumber}: label kept full-width (bounds uncertain), invoice removed`
+                              : `Page ${p.pageNumber}: separator not found — full page kept`
+                        }
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums ${
+                          state === "tight"
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                            : state === "wide"
+                              ? "bg-sky-50 text-sky-700 ring-1 ring-sky-200"
+                              : "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                        }`}
+                      >
+                        p{p.pageNumber}{" "}
+                        {state === "tight" ? "✓ label" : state === "wide" ? "✓ wide" : "⚠ full page"}
+                      </span>
+                    );
+                  })}
                 </div>
                 {undetected.length > 0 && (
                   <p className="mt-2 text-[13px] text-amber-700">
