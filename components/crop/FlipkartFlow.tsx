@@ -2,13 +2,23 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import PdfUploader from "../pdf/PdfUploader";
-import PdfViewer from "../pdf/PdfViewer";
 import Button from "../ui/Button";
 import { Alert, Spinner } from "../ui/primitives";
-import { cropFlipkartLabels, type FlipkartCropResult } from "@/lib/pdf/flipkart";
+import type { FlipkartCropResult } from "@/lib/pdf/flipkart";
 import { MAX_FILE_SIZE_BYTES, formatBytes } from "@/lib/constants";
 import { downloadBytes, fileToBytes, validatePdfFile } from "@/lib/file";
+
+// Result preview loads only when needed — upload screen paints first.
+const PdfViewer = dynamic(() => import("../pdf/PdfViewer"), {
+  ssr: false,
+  loading: () => (
+    <div className="card flex items-center justify-center px-6 py-16">
+      <Spinner label="Loading preview…" />
+    </div>
+  ),
+});
 
 type Stage = "upload" | "processing" | "result";
 
@@ -35,6 +45,8 @@ export default function FlipkartFlow() {
       const bytes = await fileToBytes(f);
       // Let the processing UI paint before the heavy work starts.
       await new Promise((r) => setTimeout(r, 60));
+      // Detection + pdf-lib load on demand so upload paints instantly.
+      const { cropFlipkartLabels } = await import("@/lib/pdf/flipkart");
       const out = await cropFlipkartLabels(bytes, (done, total) =>
         setProgress({ done, total })
       );
@@ -95,18 +107,13 @@ export default function FlipkartFlow() {
 
       {stage === "processing" && (
         <div className="card mx-auto max-w-xl p-6 text-center sm:p-10">
-          <Spinner label="Detecting the dotted separator…" />
+          <Spinner label="Processing…" />
           <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-slate-100">
             <div
               className="h-full rounded-full bg-accent-600 transition-all duration-200"
               style={{ width: `${pct}%` }}
             />
           </div>
-          <p className="mt-3 text-[13px] font-medium tabular-nums text-slate-500">
-            {progress.total > 0
-              ? `Processing page ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
-              : "Reading your PDF…"}
-          </p>
           <p className="mt-1 text-[12px] text-slate-400">
             🔒 Processed locally — your file never leaves your browser
           </p>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Quicklabelcrop — Crop labels. Merge PDFs.",
+  title: "Fastlabelcrop — Crop labels. Merge PDFs.",
   description:
     "Crop e-commerce shipping labels and merge PDFs entirely in your browser. Private, fast, no uploads.",
 };

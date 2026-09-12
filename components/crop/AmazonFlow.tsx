@@ -2,14 +2,23 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PDFDocument } from "pdf-lib";
+import dynamic from "next/dynamic";
 import PdfUploader from "../pdf/PdfUploader";
-import PdfViewer from "../pdf/PdfViewer";
 import Button from "../ui/Button";
 import { Alert, Spinner } from "../ui/primitives";
-import { processAmazonPdf, type AmazonProcessResult } from "@/lib/pdf/amazon";
+import type { AmazonProcessResult } from "@/lib/pdf/amazon";
 import { MAX_FILE_SIZE_BYTES, formatBytes } from "@/lib/constants";
 import { downloadBytes, fileToBytes, validatePdfFile } from "@/lib/file";
+
+// Result preview loads only when needed — upload screen paints first.
+const PdfViewer = dynamic(() => import("../pdf/PdfViewer"), {
+  ssr: false,
+  loading: () => (
+    <div className="card flex items-center justify-center px-6 py-16">
+      <Spinner label="Loading preview…" />
+    </div>
+  ),
+});
 
 type Stage = "upload" | "options" | "processing" | "result";
 type KeepOption = "labels" | "all";
@@ -36,6 +45,8 @@ export default function AmazonFlow() {
     }
     try {
       const data = await fileToBytes(f);
+      // pdf-lib loads on demand so the upload UI paints instantly.
+      const { PDFDocument } = await import("pdf-lib");
       // pdf-lib validation (no preview engine needed to accept the file).
       const doc = await PDFDocument.load(data, { ignoreEncryption: true });
       const n = doc.getPageCount();
@@ -61,6 +72,7 @@ export default function AmazonFlow() {
     try {
       // Let the processing UI paint before the pdf-lib work.
       await new Promise((r) => setTimeout(r, 60));
+      const { processAmazonPdf } = await import("@/lib/pdf/amazon");
       const out = await processAmazonPdf(bytes, option === "all");
       setResult(out);
       setStage("result");
@@ -198,7 +210,7 @@ export default function AmazonFlow() {
 
       {stage === "processing" && (
         <div className="card mx-auto max-w-xl p-6 text-center sm:p-10">
-          <Spinner label={option === "labels" ? "Extracting shipping labels…" : "Preparing your PDF…"} />
+          <Spinner label="Processing…" />
           <p className="mt-3 text-[12px] text-slate-400">
             🔒 Processed locally — your file never leaves your browser
           </p>

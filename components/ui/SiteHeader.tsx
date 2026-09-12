@@ -36,7 +36,7 @@ export default function SiteHeader({
             ✂
           </span>
           <span className="leading-tight">
-            <span className="block text-[15px] font-bold tracking-tight">Quicklabelcrop</span>
+            <span className="block text-[15px] font-bold tracking-tight">Fastlabelcrop</span>
             <span className="block text-[11px] font-medium text-slate-500">
               100% in-browser PDF tools
             </span>
@@ -77,7 +77,7 @@ export function SiteFooter() {
     <footer className="mt-16 border-t border-slate-200 bg-white">
       <div className="container-x flex flex-col items-center justify-between gap-3 py-8 text-center sm:flex-row sm:text-left">
         <p className="text-[13px] text-slate-500">
-          <span className="font-semibold text-slate-700">Quicklabelcrop</span> — your files are
+          <span className="font-semibold text-slate-700">Fastlabelcrop</span> — your files are
           processed locally in your browser and never uploaded.
         </p>
         <p className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-800">
