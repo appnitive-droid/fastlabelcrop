@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import SiteHeader, { SiteFooter } from "@/components/ui/SiteHeader";
@@ -8,6 +9,71 @@ import {
   platformLogo,
   type Platform,
 } from "@/lib/pdf/platform-defaults";
+
+export function generateStaticParams() {
+  return [
+    { platform: "amazon" },
+    { platform: "flipkart" },
+    { platform: "meesho" },
+    { platform: "manual" },
+  ];
+}
+
+const CROP_METADATA: Record<Platform, { title: string; description: string }> = {
+  amazon: {
+    title: "Crop Amazon Shipping Labels from PDF Online",
+    description:
+      "Free online tool to crop Amazon shipping labels from your PDF — labels on odd pages, invoices on even. Extract print-ready labels in-browser. Private, no uploads.",
+  },
+  flipkart: {
+    title: "Crop Flipkart Shipping Labels from PDF Online",
+    description:
+      "Free online tool to crop Flipkart shipping labels from PDFs — auto-detects the dotted separator and keeps just the shipping label. Private, in-browser, no uploads.",
+  },
+  meesho: {
+    title: "Crop Meesho Shipping Labels from PDF Online",
+    description:
+      "Free online tool to crop Meesho shipping labels from PDFs — pre-selects the scannable slip for thermal printing. Private, in-browser, no uploads.",
+  },
+  manual: {
+    title: "Manual Crop — Crop Any Shipping Label or PDF Online",
+    description:
+      "Free online manual crop tool for any shipping label PDF or marketplace — draw the crop box yourself and download a print-ready PDF. Private, in-browser, no uploads.",
+  },
+};
+
+export function generateMetadata({
+  params,
+}: {
+  params: { platform: string };
+}): Metadata {
+  const slug = params.platform?.toLowerCase() || "";
+  if (!isPlatform(slug)) {
+    return {
+      title: "Unknown platform",
+      robots: { index: false, follow: true },
+    };
+  }
+  const platform = slug as Platform;
+  const meta = CROP_METADATA[platform];
+  return {
+    title: meta.title,
+    description: meta.description,
+    alternates: {
+      canonical: `/crop/${platform}`,
+    },
+    openGraph: {
+      title: `${meta.title} | Fastlabelcrop`,
+      description: meta.description,
+      url: `/crop/${platform}`,
+    },
+    twitter: {
+      card: "summary",
+      title: `${meta.title} | Fastlabelcrop`,
+      description: meta.description,
+    },
+  };
+}
 
 function FlowLoading() {
   return (

@@ -4,8 +4,13 @@ export function Hero() {
   return (
     <section className="animate-fadeUp pt-8 text-center sm:pt-10">
       <h1 className="mx-auto max-w-2xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-        Crop your labels. Merge your PDFs.
+        Crop Shipping Labels &amp; Merge PDFs Online
       </h1>
+      <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500">
+        Free online tool for e-commerce sellers to crop Flipkart, Amazon and
+        Meesho shipping labels from PDFs and merge PDFs — fast, private and
+        100% in-browser. No uploads, no sign-up.
+      </p>
     </section>
   );
 }
