@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import PdfUploader from "../pdf/PdfUploader";
@@ -31,6 +31,18 @@ export default function AmazonFlow() {
   const [option, setOption] = useState<KeepOption>("labels");
   const [result, setResult] = useState<AmazonProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const downloadRef = useRef<HTMLDivElement>(null);
+
+  // After processing, bring the download actions into view —
+  // the result preview is tall and the buttons sit below it.
+  useEffect(() => {
+    if (stage === "result" && result) {
+      const t = setTimeout(() => {
+        downloadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [stage, result]);
 
   const labelCount = Math.ceil(totalPages / 2);
 
@@ -264,7 +276,7 @@ export default function AmazonFlow() {
               />
             </div>
 
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <div ref={downloadRef} className="mt-6 flex scroll-mt-24 flex-col gap-2 sm:flex-row">
               <Button className="flex-1" size="lg" onClick={() => downloadBytes(result.pdf, outName)}>
                 ⬇ {result.unchanged ? "Download PDF" : "Download Labels PDF"}
               </Button>

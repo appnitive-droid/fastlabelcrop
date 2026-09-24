@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import SiteHeader, { SiteFooter } from "@/components/ui/SiteHeader";
 import PdfUploader from "@/components/pdf/PdfUploader";
@@ -24,6 +24,17 @@ export default function MergePage() {
   const [result, setResult] = useState<Uint8Array | null>(null);
   const [resultStats, setResultStats] = useState<{ files: number; pages: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const downloadRef = useRef<HTMLDivElement>(null);
+
+  // After merging, bring the download actions into view.
+  useEffect(() => {
+    if (stage === "result" && result) {
+      const t = setTimeout(() => {
+        downloadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [stage, result]);
 
   const totalPages = useMemo(
     () => items.reduce((s, i) => s + (i.pageCount || 0), 0),
@@ -93,7 +104,6 @@ export default function MergePage() {
       setResult(out);
       setResultStats({ files: items.length, pages });
       setStage("result");
-      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Merging failed. Please retry.");
     } finally {
@@ -245,7 +255,7 @@ export default function MergePage() {
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <div ref={downloadRef} className="mt-6 flex scroll-mt-24 flex-col gap-2 sm:flex-row">
                 <Button className="flex-1" size="lg" onClick={() => downloadBytes(result, "merged.pdf")}>
                   ⬇ Download Merged PDF
                 </Button>

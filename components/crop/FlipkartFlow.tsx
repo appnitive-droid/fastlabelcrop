@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import PdfUploader from "../pdf/PdfUploader";
@@ -29,6 +29,18 @@ export default function FlipkartFlow() {
   const [result, setResult] = useState<FlipkartCropResult | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
+  const downloadRef = useRef<HTMLDivElement>(null);
+
+  // After processing, bring the download actions into view —
+  // the result preview is tall and the buttons sit below it.
+  useEffect(() => {
+    if (stage === "result" && result) {
+      const t = setTimeout(() => {
+        downloadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [stage, result]);
 
   async function handleFiles(files: File[]) {
     const f = files[0];
@@ -198,7 +210,7 @@ export default function FlipkartFlow() {
               </>
             )}
 
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <div ref={downloadRef} className="mt-6 flex scroll-mt-24 flex-col gap-2 sm:flex-row">
               {!noneDetected && (
                 <Button
                   className="flex-1"

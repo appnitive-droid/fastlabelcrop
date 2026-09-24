@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import PdfUploader from "../pdf/PdfUploader";
@@ -45,6 +45,18 @@ export default function ManualFlow({ platform }: { platform: Platform }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
+  const downloadRef = useRef<HTMLDivElement>(null);
+
+  // After cropping, bring the download actions into view —
+  // the result preview is tall and the buttons sit below it.
+  useEffect(() => {
+    if (stage === "result" && result) {
+      const t = setTimeout(() => {
+        downloadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [stage, result]);
 
   async function handleFiles(files: File[]) {
     const f = files[0];
@@ -192,7 +204,7 @@ export default function ManualFlow({ platform }: { platform: Platform }) {
             <div className="mt-5">
               <PdfViewer data={result} title="Cropped output" />
             </div>
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <div ref={downloadRef} className="mt-6 flex scroll-mt-24 flex-col gap-2 sm:flex-row">
               <Button className="flex-1" size="lg" onClick={() => downloadBytes(result, resultName)}>
                 ⬇ Download PDF
               </Button>

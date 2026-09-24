@@ -144,7 +144,7 @@ export default function CropPlatformPage({ params }: { params: { platform: strin
       <div className="min-h-screen">
         <SiteHeader
           title="Crop Flipkart Label"
-          subtitle="Upload your label PDF — we auto-detect the dotted separator and keep just the shipping label."
+          subtitle="Upload your label PDF and get print-ready shipping labels."
           logoSrc={platformLogo(platform)}
           logoAlt="Flipkart"
         />
