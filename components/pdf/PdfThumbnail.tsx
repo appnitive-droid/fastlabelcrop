@@ -20,9 +20,10 @@ export default function PdfThumbnail({
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setSrc(null);
     setFailed(false);
-    renderThumbnail(data, width)
+    renderThumbnail(data, width, controller.signal)
       .then((url) => {
         if (!cancelled) setSrc(url);
       })
@@ -31,6 +32,7 @@ export default function PdfThumbnail({
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [data, width]);
 

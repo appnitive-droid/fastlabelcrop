@@ -592,12 +592,13 @@ interface PageGeometry {
  */
 async function analyzeFlipkartPage(
   input: Uint8Array,
-  pageNumber: number
+  pageNumber: number,
+  signal?: AbortSignal
 ): Promise<PageGeometry> {
   // Text is auxiliary: a failure here must not block detection.
   const [img, textLines] = await Promise.all([
-    renderPageToImageData({ data: input, pageNumber, targetWidth: DETECT_WIDTH }),
-    getPageTextLines(input, pageNumber).catch((): PageTextLine[] => []),
+    renderPageToImageData({ data: input, pageNumber, targetWidth: DETECT_WIDTH, signal }),
+    getPageTextLines(input, pageNumber, signal).catch((): PageTextLine[] => []),
   ]);
   const taxTop = findTaxAnchor(textLines);
   const stats = computeRowStats(img.pixels, img.width, img.height);
@@ -679,8 +680,11 @@ async function analyzeFlipkartPage(
  */
 export async function cropFlipkartLabels(
   input: Uint8Array,
-  onProgress?: (done: number, total: number) => void
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal
 ): Promise<FlipkartCropResult> {
+  const checkCancelled = () => { if (signal?.aborted) throw new DOMException("Cancelled", "AbortError"); };
+  checkCancelled();
   let doc;
   try {
     doc = await PDFDocument.load(input, { ignoreEncryption: true });
@@ -697,6 +701,7 @@ export async function cropFlipkartLabels(
 
   // Pages are processed SEQUENTIALLY: bounded memory, clean progress.
   for (let i = 0; i < pdfPages.length; i++) {
+    checkCancelled();
     const pageNumber = i + 1;
     const rotation = ((pdfPages[i].getRotation().angle % 360) + 360) % 360;
     if (rotation !== 0) {
@@ -720,9 +725,12 @@ export async function cropFlipkartLabels(
     // fails twice is reported, never guessed.
     for (let attempt = 0; attempt < 2 && !geo; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
+      checkCancelled();
       try {
-        geo = await analyzeFlipkartPage(input, pageNumber);
+        geo = await analyzeFlipkartPage(input, pageNumber, signal);
+        checkCancelled();
       } catch (err) {
+        checkCancelled();
         failure = err;
       }
     }
@@ -754,6 +762,7 @@ export async function cropFlipkartLabels(
     onProgress?.(pageNumber, pdfPages.length);
   }
 
+  checkCancelled();
   let pdf: Uint8Array;
   try {
     pdf = await cropPdfPerPage(input, rects);

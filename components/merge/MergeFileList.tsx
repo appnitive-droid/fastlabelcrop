@@ -27,10 +27,12 @@ export default function MergeFileList({
   items,
   onReorder,
   onRemove,
+  disabled = false,
 }: {
   items: MergeItem[];
   onReorder: (items: MergeItem[]) => void;
   onRemove: (id: string) => void;
+  disabled?: boolean;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -46,6 +48,7 @@ export default function MergeFileList({
   }
   function handleEnd(e: DragEndEvent) {
     setActiveId(null);
+    if (disabled) return;
     const { active, over } = e;
     if (!over || active.id === over.id) return;
     const oldIndex = items.findIndex((i) => i.id === active.id);
@@ -65,7 +68,7 @@ export default function MergeFileList({
       <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
           {items.map((item, idx) => (
-            <SortablePdfCard key={item.id} item={item} index={idx} onRemove={onRemove} />
+            <SortablePdfCard key={item.id} item={item} index={idx} onRemove={onRemove} disabled={disabled} />
           ))}
         </div>
       </SortableContext>

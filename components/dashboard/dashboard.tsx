@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/AppLink";
 
 export function Hero() {
   return (
@@ -140,4 +140,17 @@ export function TrustRow() {
       ))}
     </div>
   );
+}
+
+export function AdvancedPromoCard() {
+  return <div className="card mt-4 border-accent-200 bg-accent-50 p-6 sm:p-8">
+    <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
+      <div className="max-w-xl">
+        <p className="label-xs text-accent-700">One workflow · multiple marketplaces</p>
+        <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Advanced Cropping</h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Mix Flipkart, Amazon, Meesho and other label PDFs. Crop each file, choose the order, and download one merged PDF.</p>
+      </div>
+      <Link href="/advanced" className="inline-flex h-12 shrink-0 items-center justify-center rounded-xl bg-accent-600 px-6 text-[15px] font-bold text-white hover:bg-accent-700">Crop &amp; Merge PDFs →</Link>
+    </div>
+  </div>;
 }

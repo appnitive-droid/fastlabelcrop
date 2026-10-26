@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import Link from "@/components/ui/AppLink";
 import SiteHeader, { SiteFooter } from "@/components/ui/SiteHeader";
 import { Alert, Spinner } from "@/components/ui/primitives";
 import {
@@ -33,7 +33,7 @@ const CROP_METADATA: Record<Platform, { title: string; description: string }> = 
   meesho: {
     title: "Crop Meesho Shipping Labels from PDF Online",
     description:
-      "Free online tool to crop Meesho shipping labels from PDFs — pre-selects the scannable slip for thermal printing. Private, in-browser, no uploads.",
+      "Keep the invoice in your Meesho PDF, or crop the shipping label for printing. Private, in-browser, no uploads.",
   },
   manual: {
     title: "Manual Crop — Crop Any Shipping Label or PDF Online",
@@ -160,7 +160,7 @@ export default function CropPlatformPage({ params }: { params: { platform: strin
   const manualTitle = isManualGeneric ? "Manual Crop" : `Crop ${meta.name} Label`;
   const manualSubtitle = isManualGeneric
     ? "Upload any PDF and crop it manually before downloading."
-    : "Upload your label PDF and crop it before downloading.";
+    : "Upload your Meesho PDF and choose whether to keep the invoice or crop the shipping label.";
 
   return (
     <div className="min-h-screen">

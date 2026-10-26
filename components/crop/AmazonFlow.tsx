@@ -1,29 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import dynamic from "next/dynamic";
+import { useState } from "react";
+import Link from "@/components/ui/AppLink";
+import { yieldForPaint } from "@/lib/yield-for-paint";
+import { useOperationGate } from "@/lib/use-operation-gate";
+import PdfResult from "../pdf/PdfResult";
 import PdfUploader from "../pdf/PdfUploader";
+import ProgressBar from "../ui/ProgressBar";
 import Button from "../ui/Button";
 import { Alert, Spinner } from "../ui/primitives";
 import type { AmazonProcessResult } from "@/lib/pdf/amazon";
 import { MAX_FILE_SIZE_BYTES, formatBytes } from "@/lib/constants";
-import { downloadBytes, fileToBytes, validatePdfFile } from "@/lib/file";
+import { fileToBytes, validatePdfFile } from "@/lib/file";
 
-// Result preview loads only when needed — upload screen paints first.
-const PdfViewer = dynamic(() => import("../pdf/PdfViewer"), {
-  ssr: false,
-  loading: () => (
-    <div className="card flex items-center justify-center px-6 py-16">
-      <Spinner label="Loading preview…" />
-    </div>
-  ),
-});
 
 type Stage = "upload" | "options" | "processing" | "result";
 type KeepOption = "labels" | "all";
 
 export default function AmazonFlow() {
+  const gate = useOperationGate();
+  const [loadingFile, setLoadingFile] = useState(false);
   const [stage, setStage] = useState<Stage>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [bytes, setBytes] = useState<Uint8Array | null>(null);
@@ -31,36 +27,28 @@ export default function AmazonFlow() {
   const [option, setOption] = useState<KeepOption>("labels");
   const [result, setResult] = useState<AmazonProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const downloadRef = useRef<HTMLDivElement>(null);
-
-  // After processing, bring the download actions into view —
-  // the result preview is tall and the buttons sit below it.
-  useEffect(() => {
-    if (stage === "result" && result) {
-      const t = setTimeout(() => {
-        downloadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
-      return () => clearTimeout(t);
-    }
-  }, [stage, result]);
-
   const labelCount = Math.ceil(totalPages / 2);
 
   async function handleFiles(files: File[]) {
     const f = files[0];
     if (!f) return;
+    const token = gate.begin();
+    if (token === null) return;
     setError(null);
-    const problem = validatePdfFile(f, MAX_FILE_SIZE_BYTES);
-    if (problem) {
-      setError(problem);
-      return;
-    }
+    setLoadingFile(true);
     try {
+      await yieldForPaint();
+      if (!gate.isCurrent(token)) return;
+      const problem = validatePdfFile(f, MAX_FILE_SIZE_BYTES);
+      if (problem) { setError(problem); return; }
       const data = await fileToBytes(f);
+      if (!gate.isCurrent(token)) return;
       // pdf-lib loads on demand so the upload UI paints instantly.
       const { PDFDocument } = await import("pdf-lib");
+      if (!gate.isCurrent(token)) return;
       // pdf-lib validation (no preview engine needed to accept the file).
-      const doc = await PDFDocument.load(data, { ignoreEncryption: true });
+      const doc = await PDFDocument.load(data);
+      if (!gate.isCurrent(token)) return;
       const n = doc.getPageCount();
       if (n < 1) throw new Error("empty");
       setFile(f);
@@ -70,32 +58,42 @@ export default function AmazonFlow() {
       setResult(null);
       setStage("options");
     } catch (e) {
+      if (!gate.isCurrent(token)) return;
       console.error("[amazon] upload validation failed:", e);
       setError(
         "This PDF could not be opened. It may be corrupted or password-protected. Try another file."
       );
+    } finally {
+      if (gate.isCurrent(token)) { setLoadingFile(false); gate.finish(token); }
     }
   }
 
   async function handleProcess() {
     if (!bytes) return;
+    const token = gate.begin();
+    if (token === null) return;
     setError(null);
     setStage("processing");
     try {
       // Let the processing UI paint before the pdf-lib work.
-      await new Promise((r) => setTimeout(r, 60));
+      await yieldForPaint();
       const { processAmazonPdf } = await import("@/lib/pdf/amazon");
+      if (!gate.isCurrent(token)) return;
       const out = await processAmazonPdf(bytes, option === "all");
+      if (!gate.isCurrent(token)) return;
       setResult(out);
       setStage("result");
     } catch (e) {
+      if (!gate.isCurrent(token)) return;
       console.error("[amazon] processing failed:", e);
       setError(e instanceof Error ? e.message : "Could not process this PDF. Please retry.");
       setStage("options");
-    }
+    } finally { gate.finish(token); }
   }
 
   function reset() {
+    gate.invalidate();
+    setLoadingFile(false);
     setStage("upload");
     setFile(null);
     setBytes(null);
@@ -120,7 +118,9 @@ export default function AmazonFlow() {
 
       {stage === "upload" && (
         <div className="mx-auto max-w-2xl">
+          {loadingFile && <div className="mb-4 flex items-center justify-between gap-3" role="status"><ProgressBar label="Reading PDF…" /><Button variant="secondary" size="sm" onClick={reset}>Cancel</Button></div>}
           <PdfUploader
+            disabled={loadingFile}
             title="Drop your Amazon label PDF here"
             cta="Choose PDF"
             onFiles={handleFiles}
@@ -229,70 +229,10 @@ export default function AmazonFlow() {
         </div>
       )}
 
-      {stage === "result" && result && (
-        <div className="mx-auto max-w-3xl animate-fadeUp">
-          <div className="card p-5 sm:p-7">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-lg">
-                ✓
-              </span>
-              <div>
-                <h2 className="text-lg font-bold tracking-tight text-slate-900">
-                  {result.unchanged ? "Original kept unchanged" : "Labels extracted"}
-                </h2>
-                <p className="text-[13px] text-slate-500">
-                  {result.unchanged
-                    ? `All ${result.totalPages} pages kept · ${formatBytes(result.pdf.length)}`
-                    : `${result.keptPages.length} label${result.keptPages.length === 1 ? "" : "s"} kept · ${result.removedPages.length} invoice${result.removedPages.length === 1 ? "" : "s"} removed · ${formatBytes(result.pdf.length)}`}
-                </p>
-              </div>
-            </div>
-
-            {!result.unchanged && (
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                {Array.from({ length: result.totalPages }, (_, i) => i + 1).map((p) => {
-                  const kept = p % 2 === 1;
-                  return (
-                    <span
-                      key={p}
-                      title={kept ? `Page ${p}: label kept` : `Page ${p}: invoice removed`}
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums ${
-                        kept
-                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                          : "bg-slate-100 text-slate-400 line-through ring-1 ring-slate-200"
-                      }`}
-                    >
-                      p{p} {kept ? "✓" : "✗"}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="mt-5">
-              <PdfViewer
-                data={result.pdf}
-                title={result.unchanged ? "Original PDF" : "Label pages in original order"}
-              />
-            </div>
-
-            <div ref={downloadRef} className="mt-6 flex scroll-mt-24 flex-col gap-2 sm:flex-row">
-              <Button className="flex-1" size="lg" onClick={() => downloadBytes(result.pdf, outName)}>
-                ⬇ {result.unchanged ? "Download PDF" : "Download Labels PDF"}
-              </Button>
-              <Button variant="secondary" size="lg" onClick={reset}>
-                Process Another PDF
-              </Button>
-              <Link
-                href="/"
-                className="inline-flex h-12 items-center justify-center rounded-xl px-5 text-[15px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-              >
-                Back to Dashboard
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+      {stage === "result" && result && <PdfResult data={result.pdf} filename={outName} actions={<>
+        <Button variant="secondary" size="lg" onClick={reset}>Process Another PDF</Button>
+        <Link href="/" className="inline-flex h-12 items-center justify-center rounded-xl px-5 text-sm font-semibold text-slate-500 hover:bg-slate-100">Back to Dashboard</Link>
+      </>} />}
     </div>
   );
 }

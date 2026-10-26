@@ -53,10 +53,10 @@ export function PdfPreviewCanvas({
     setAttempt(0);
   }, [data]);
 
-  const render = useCallback(async () => {
+  const render = useCallback(async (signal: AbortSignal) => {
     if (!canvasRef.current) return;
     const mySeq = ++seqRef.current;
-    const isStale = () => seqRef.current !== mySeq;
+    const isStale = () => signal.aborted || seqRef.current !== mySeq;
     setLoading(true);
     setError(null);
     try {
@@ -67,10 +67,11 @@ export function PdfPreviewCanvas({
         scale: renderScale,
         maxWidth,
         isStale,
+        signal,
       });
-      onSized?.(info);
+      if (!isStale()) onSized?.(info);
     } catch (e) {
-      if (e instanceof RenderCancelled) return; // superseded — stay silent
+      if (isStale() || e instanceof RenderCancelled) return; // superseded — stay silent
       setError(friendlyRenderError(e, "Could not render this PDF preview."));
     } finally {
       if (!isStale()) setLoading(false);
@@ -79,7 +80,9 @@ export function PdfPreviewCanvas({
   }, [data, maxWidth, renderScale, attempt]);
 
   useEffect(() => {
-    render();
+    const controller = new AbortController();
+    render(controller.signal);
+    return () => controller.abort();
   }, [render]);
 
   return (
@@ -96,7 +99,7 @@ export function PdfPreviewCanvas({
       {/* Canvas stays mounted (hidden on error) so retry always has a render target. */}
       <canvas
         ref={canvasRef}
-        className={`mx-auto block max-w-full rounded-lg shadow-pop ${error ? "hidden" : ""}`}
+        className={`mx-auto block max-w-full !h-auto rounded-lg shadow-pop ${error ? "hidden" : ""}`}
       />
     </div>
   );
@@ -127,6 +130,7 @@ export default function PdfViewer({
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     const mySeq = ++seqRef.current;
     const isStale = () => cancelled || seqRef.current !== mySeq;
     async function run() {
@@ -141,10 +145,11 @@ export default function PdfViewer({
           scale: 1.6,
           maxWidth: 620,
           isStale,
+          signal: controller.signal,
         });
         if (!cancelled) setNumPages(info.numPages);
       } catch (e) {
-        if (e instanceof RenderCancelled) return; // superseded — stay silent
+        if (isStale() || e instanceof RenderCancelled) return; // superseded — stay silent
         if (!cancelled)
           setError(friendlyRenderError(e, "Could not render this page."));
       } finally {
@@ -154,12 +159,13 @@ export default function PdfViewer({
     run();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [data, page, attempt]);
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm font-bold text-slate-800">{title}</p>
         <div className="flex items-center gap-2">
           <button
@@ -194,7 +200,7 @@ export default function PdfViewer({
         {/* Canvas stays mounted (hidden on error) so retry / page nav always has a render target. */}
         <canvas
           ref={canvasRef}
-          className={`mx-auto block max-w-full rounded-lg bg-white shadow-pop ${error ? "hidden" : ""}`}
+          className={`mx-auto block max-w-full !h-auto rounded-lg bg-white shadow-pop ${error ? "hidden" : ""}`}
         />
       </div>
     </div>

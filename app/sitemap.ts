@@ -13,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/crop/flipkart", changeFrequency: "monthly", priority: 0.8 },
     { path: "/crop/meesho", changeFrequency: "monthly", priority: 0.8 },
     { path: "/crop/manual", changeFrequency: "monthly", priority: 0.7 },
+    { path: "/advanced", changeFrequency: "monthly", priority: 0.9 },
     { path: "/merge", changeFrequency: "monthly", priority: 0.8 },
   ];
 

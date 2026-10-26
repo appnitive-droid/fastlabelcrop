@@ -15,7 +15,7 @@ export function Card({
 export function Spinner({ label }: { label?: string }) {
   return (
     <span className="inline-flex items-center gap-2.5">
-      <span className="h-5 w-5 animate-spin rounded-full border-[2.5px] border-accent-200 border-t-accent-600" />
+      <span aria-hidden="true" className="h-5 w-5 shrink-0 animate-spin rounded-full border-[2.5px] border-accent-200 border-t-accent-600 motion-reduce:animate-none" />
       {label && <span className="text-sm font-medium text-slate-600">{label}</span>}
     </span>
   );

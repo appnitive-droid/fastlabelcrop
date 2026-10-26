@@ -38,6 +38,10 @@ const config: Config = {
         pop: "0 8px 24px rgba(16,24,40,0.10)",
       },
       keyframes: {
+        progress: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(300%)" },
+        },
         fadeUp: {
           "0%": { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
@@ -48,6 +52,7 @@ const config: Config = {
         },
       },
       animation: {
+        progress: "progress 1.2s ease-in-out infinite",
         fadeUp: "fadeUp 0.35s ease both",
         fadeIn: "fadeIn 0.25s ease both",
       },

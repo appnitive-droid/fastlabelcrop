@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from "@/components/ui/AppLink";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function SiteHeader({
   title,
@@ -15,6 +16,8 @@ export default function SiteHeader({
   logoAlt?: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  useEffect(() => { if (pathname !== "/") router.prefetch("/"); }, [pathname, router]);
   const link = (href: string, label: string) => {
     const active = pathname === href || (href !== "/" && pathname.startsWith(href));
     return (
@@ -31,7 +34,7 @@ export default function SiteHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/85 backdrop-blur">
       <div className="container-x flex h-16 items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/" prefetch={true} className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-[15px] font-extrabold text-white shadow-sm">
             ✂
           </span>

@@ -1,81 +1,75 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import dynamic from "next/dynamic";
+import Link from "@/components/ui/AppLink";
+import { yieldForPaint } from "@/lib/yield-for-paint";
+import { useOperationGate } from "@/lib/use-operation-gate";
+import PdfResult from "../pdf/PdfResult";
 import PdfUploader from "../pdf/PdfUploader";
+import ProgressBar from "../ui/ProgressBar";
 import Button from "../ui/Button";
-import { Alert, Spinner } from "../ui/primitives";
+import { Alert } from "../ui/primitives";
 import type { FlipkartCropResult } from "@/lib/pdf/flipkart";
-import { MAX_FILE_SIZE_BYTES, formatBytes } from "@/lib/constants";
-import { downloadBytes, fileToBytes, validatePdfFile } from "@/lib/file";
+import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
+import { fileToBytes, validatePdfFile } from "@/lib/file";
 
-// Result preview loads only when needed — upload screen paints first.
-const PdfViewer = dynamic(() => import("../pdf/PdfViewer"), {
-  ssr: false,
-  loading: () => (
-    <div className="card flex items-center justify-center px-6 py-16">
-      <Spinner label="Loading preview…" />
-    </div>
-  ),
-});
 
-type Stage = "upload" | "processing" | "result";
+type Stage = "upload" | "reading" | "processing" | "result";
 
 export default function FlipkartFlow() {
+  const gate = useOperationGate();
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => () => controller.current?.abort(), []);
   const [stage, setStage] = useState<Stage>("upload");
   const [fileName, setFileName] = useState("");
   const [original, setOriginal] = useState<Uint8Array | null>(null);
   const [result, setResult] = useState<FlipkartCropResult | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
-  const downloadRef = useRef<HTMLDivElement>(null);
-
-  // After processing, bring the download actions into view —
-  // the result preview is tall and the buttons sit below it.
-  useEffect(() => {
-    if (stage === "result" && result) {
-      const t = setTimeout(() => {
-        downloadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
-      return () => clearTimeout(t);
-    }
-  }, [stage, result]);
-
   async function handleFiles(files: File[]) {
     const f = files[0];
     if (!f) return;
+    const token = gate.begin();
+    if (token === null) return;
+    const abort = new AbortController();
+    controller.current = abort;
     setError(null);
-    const problem = validatePdfFile(f, MAX_FILE_SIZE_BYTES);
-    if (problem) {
-      setError(problem);
-      return;
-    }
-    setStage("processing");
+    setStage("reading");
     setProgress({ done: 0, total: 0 });
     try {
+      await yieldForPaint();
+      if (!gate.isCurrent(token)) return;
+      const problem = validatePdfFile(f, MAX_FILE_SIZE_BYTES);
+      if (problem) { setError(problem); setStage("upload"); return; }
       const bytes = await fileToBytes(f);
+      if (!gate.isCurrent(token)) return;
+      setStage("processing");
       // Let the processing UI paint before the heavy work starts.
-      await new Promise((r) => setTimeout(r, 60));
+      await yieldForPaint();
       // Detection + pdf-lib load on demand so upload paints instantly.
       const { cropFlipkartLabels } = await import("@/lib/pdf/flipkart");
-      const out = await cropFlipkartLabels(bytes, (done, total) =>
-        setProgress({ done, total })
-      );
+      if (!gate.isCurrent(token)) return;
+      const out = await cropFlipkartLabels(bytes, (done, total) => {
+        if (gate.isCurrent(token)) setProgress({ done, total });
+      }, abort.signal);
+      if (!gate.isCurrent(token)) return;
       setFileName(f.name);
       setOriginal(bytes);
       setResult(out);
       setStage("result");
     } catch (e) {
+      if (!gate.isCurrent(token)) return;
       console.error("[flipkart] auto-crop failed:", e);
       setError(
         e instanceof Error ? e.message : "Could not process this PDF. Please retry."
       );
       setStage("upload");
-    }
+    } finally { gate.finish(token); }
   }
 
   function reset() {
+    gate.invalidate();
+    controller.current?.abort();
     setStage("upload");
     setFileName("");
     setOriginal(null);
@@ -117,132 +111,27 @@ export default function FlipkartFlow() {
         </div>
       )}
 
-      {stage === "processing" && (
-        <div className="card mx-auto max-w-xl p-6 text-center sm:p-10">
-          <Spinner label="Processing…" />
-          <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-accent-600 transition-all duration-200"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
+      {(stage === "reading" || stage === "processing") && (
+        <div className="card mx-auto max-w-xl p-6 text-center sm:p-10" role="status">
+          <ProgressBar label={stage === "reading" ? "Reading PDF…" : "Processing PDF…"}
+            value={stage === "processing" && progress.total > 0 ? pct : undefined} />
+          <Button variant="secondary" size="sm" className="mt-4" onClick={reset}>Cancel</Button>
           <p className="mt-1 text-[12px] text-slate-400">
             🔒 Processed locally — your file never leaves your browser
           </p>
         </div>
       )}
 
-      {stage === "result" && result && (
-        <div className="mx-auto max-w-3xl animate-fadeUp">
-          <div className="card p-5 sm:p-7">
-            <div className="flex items-center gap-3">
-              <span
-                className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg ${
-                  noneDetected ? "bg-amber-100" : "bg-emerald-100"
-                }`}
-              >
-                {noneDetected ? "!" : "✓"}
-              </span>
-              <div>
-                <h2 className="text-lg font-bold tracking-tight text-slate-900">
-                  {noneDetected
-                    ? "Separator not found"
-                    : `Shipping labels ready — invoice removed`}
-                </h2>
-                <p className="text-[13px] text-slate-500">
-                  {result.detectedCount} of {result.totalPages} page
-                  {result.totalPages === 1 ? "" : "s"} cropped ·{" "}
-                  {formatBytes(result.pdf.length)}
-                </p>
-              </div>
-            </div>
-
-            {noneDetected ? (
-              <div className="mt-5">
-                <Alert
-                  tone="warn"
-                  title="No dotted separator detected"
-                  message="We couldn't find the dotted line between the shipping label and the Tax Invoice on any page, so nothing was cropped. The file below is your original. Try a clearer scan, or crop manually."
-                />
-              </div>
-            ) : (
-              <>
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {result.pages.map((p) => {
-                    const state = !p.detected
-                      ? "full"
-                      : p.tightened
-                        ? "tight"
-                        : "wide";
-                    return (
-                      <span
-                        key={p.pageNumber}
-                        title={
-                          state === "tight"
-                            ? `Page ${p.pageNumber}: tight label box kept, invoice removed`
-                            : state === "wide"
-                              ? `Page ${p.pageNumber}: label kept full-width (bounds uncertain), invoice removed`
-                              : `Page ${p.pageNumber}: separator not found — full page kept`
-                        }
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums ${
-                          state === "tight"
-                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                            : state === "wide"
-                              ? "bg-sky-50 text-sky-700 ring-1 ring-sky-200"
-                              : "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-                        }`}
-                      >
-                        p{p.pageNumber}{" "}
-                        {state === "tight" ? "✓ label" : state === "wide" ? "✓ wide" : "⚠ full page"}
-                      </span>
-                    );
-                  })}
-                </div>
-                {undetected.length > 0 && (
-                  <p className="mt-2 text-[13px] text-amber-700">
-                    Page{undetected.length === 1 ? "" : "s"} {undetected.join(", ")} kept
-                    full-size (separator not found there).
-                  </p>
-                )}
-                <div className="mt-5">
-                  <PdfViewer data={result.pdf} title="Cropped labels — invoice removed" />
-                </div>
-              </>
-            )}
-
-            <div ref={downloadRef} className="mt-6 flex scroll-mt-24 flex-col gap-2 sm:flex-row">
-              {!noneDetected && (
-                <Button
-                  className="flex-1"
-                  size="lg"
-                  onClick={() => downloadBytes(result.pdf, outName)}
-                >
-                  ⬇ Download Labels PDF
-                </Button>
-              )}
-              {noneDetected && original && (
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  size="lg"
-                  onClick={() => downloadBytes(original, fileName || "original.pdf")}
-                >
-                  ⬇ Download Original PDF
-                </Button>
-              )}
-              <Button variant="secondary" size="lg" onClick={reset}>
-                Process Another PDF
-              </Button>
-              <Link
-                href="/"
-                className="inline-flex h-12 items-center justify-center rounded-xl px-5 text-[15px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-              >
-                Back to Dashboard
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+      {stage === "result" && result && <PdfResult
+        data={noneDetected && original ? original : result.pdf}
+        filename={noneDetected ? fileName || "original.pdf" : outName}
+        showPreview={!noneDetected}
+        warning={noneDetected ? <Alert tone="warn" title="Could not crop this PDF" message="No label boundary was detected. You can download your original PDF, try another file, or use manual cropping." />
+          : undetected.length > 0 ? <p className="text-sm text-amber-700" role="alert">Page{undetected.length === 1 ? "" : "s"} {undetected.join(", ")} could not be cropped. Review the preview before printing.</p> : undefined}
+        actions={<>
+          <Button variant="secondary" size="lg" onClick={reset}>Process Another PDF</Button>
+          <Link href="/" className="inline-flex h-12 items-center justify-center rounded-xl px-5 text-sm font-semibold text-slate-500 hover:bg-slate-100">Back to Dashboard</Link>
+        </>} />}
     </div>
   );
 }

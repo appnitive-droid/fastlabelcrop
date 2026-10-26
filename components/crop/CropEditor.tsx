@@ -13,14 +13,16 @@ interface Props {
   busy: boolean;
   onCrop: (rect: CropRect) => void;
   onResetSignal?: number;
+  actionLabel?: string;
 }
 
-export default function CropEditor({ data, initialRect, busy, onCrop }: Props) {
+export default function CropEditor({ data, initialRect, busy, onCrop, actionLabel }: Props) {
   const [rect, setRect] = useState<CropRect>(() => clampRect(initialRect));
   const [zoom, setZoom] = useState(1);
   const [pageSize, setPageSize] = useState({ width: 560, height: 760 });
   const [rendering, setRendering] = useState(true);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const seqRef = useRef(0);
 
@@ -28,10 +30,10 @@ export default function CropEditor({ data, initialRect, busy, onCrop }: Props) {
     setRect(clampRect(initialRect));
   }, [initialRect, data]);
 
-  const doRender = useCallback(async () => {
+  const doRender = useCallback(async (signal: AbortSignal) => {
     if (!canvasRef.current) return;
     const mySeq = ++seqRef.current;
-    const isStale = () => seqRef.current !== mySeq;
+    const isStale = () => signal.aborted || seqRef.current !== mySeq;
     setRendering(true);
     setRenderError(null);
     try {
@@ -42,20 +44,24 @@ export default function CropEditor({ data, initialRect, busy, onCrop }: Props) {
         scale: 1.9,
         maxWidth: 620,
         isStale,
+        signal,
       });
+      if (isStale()) return;
       setPageSize({ width: info.width, height: info.height });
     } catch (e) {
-      if (e instanceof RenderCancelled) return; // superseded — stay silent
+      if (isStale() || e instanceof RenderCancelled) return; // superseded — stay silent
       setRenderError(
         e instanceof Error ? e.message : "Could not render the preview for this PDF."
       );
     } finally {
       if (!isStale()) setRendering(false);
     }
-  }, [data]);
+  }, [data, attempt]);
 
   useEffect(() => {
-    doRender();
+    const controller = new AbortController();
+    doRender(controller.signal);
+    return () => controller.abort();
   }, [doRender]);
 
   const displayW = Math.round(pageSize.width * zoom);
@@ -75,14 +81,15 @@ export default function CropEditor({ data, initialRect, busy, onCrop }: Props) {
         </div>
         <div className="max-h-[72vh] overflow-auto bg-slate-100/80 p-4 sm:p-6">
           <div className="mx-auto w-fit">
-            {renderError ? (
-              <p className="rounded-xl border border-rose-200 bg-rose-50 px-6 py-10 text-sm font-medium text-rose-700">
-                {renderError}
-              </p>
-            ) : (
+            {renderError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-6 py-6 text-sm font-medium text-rose-700" role="alert">
+                <p>{renderError}</p>
+                <button className="mt-3 rounded-lg bg-white px-3 py-2 font-bold" onClick={() => setAttempt((value) => value + 1)}>Retry preview</button>
+              </div>
+            )}
               <div
-                className="relative overflow-hidden rounded-lg bg-white shadow-pop"
-                style={{ width: displayW, height: displayH, maxWidth: "100%" }}
+                className={`relative overflow-hidden rounded-lg bg-white shadow-pop ${renderError ? "hidden" : ""}`}
+                style={{ width: displayW, height: displayH, maxWidth: "none" }}
               >
                 <canvas
                   ref={canvasRef}
@@ -96,7 +103,6 @@ export default function CropEditor({ data, initialRect, busy, onCrop }: Props) {
                   </div>
                 )}
               </div>
-            )}
             <p className="mt-3 text-center text-[12px] text-slate-400">
               Drag to move · drag corners / edges to resize
             </p>
@@ -114,6 +120,8 @@ export default function CropEditor({ data, initialRect, busy, onCrop }: Props) {
           onReset={() => setRect(clampRect(initialRect))}
           onCrop={() => onCrop(clampRect(rect))}
           busy={busy}
+          disabled={rendering || Boolean(renderError)}
+          actionLabel={actionLabel}
         />
       </div>
     </div>

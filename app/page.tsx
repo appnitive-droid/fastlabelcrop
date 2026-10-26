@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import SiteHeader, { SiteFooter } from "@/components/ui/SiteHeader";
-import { Hero, PlatformCards, MergePromoCard, TrustRow } from "@/components/dashboard/dashboard";
+import { Hero, PlatformCards, MergePromoCard, AdvancedPromoCard, TrustRow } from "@/components/dashboard/dashboard";
 
 export const metadata: Metadata = {
   title: "Fastlabelcrop — Crop Shipping Labels & Merge PDFs Online",
@@ -25,6 +25,7 @@ export default function DashboardPage() {
         <Hero />
         <p className="label-xs mt-8">Crop labels</p>
         <PlatformCards />
+        <AdvancedPromoCard />
         <p className="label-xs mt-10">Combine documents</p>
         <MergePromoCard />
         <TrustRow />

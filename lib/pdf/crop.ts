@@ -7,20 +7,36 @@ import { clampRect, type CropRect } from "./platform-defaults";
  */
 function applyRectToPage(page: PDFPage, rectNormalized: CropRect): void {
   const rect = clampRect(rectNormalized);
-  const { width: pw, height: ph } = page.getSize();
-  const xPt = rect.x * pw;
-  const wPt = rect.width * pw;
-  const hPt = rect.height * ph;
-  // UI origin is top-left; PDF origin is bottom-left.
-  const yBottomPt = ph - (rect.y * ph + hPt);
-
-  const nx = Math.max(0, Math.min(pw - 1, xPt));
-  const ny = Math.max(0, Math.min(ph - 1, yBottomPt));
-  const nw = Math.max(1, Math.min(pw - nx, wPt));
-  const nh = Math.max(1, Math.min(ph - ny, hPt));
-
-  page.setCropBox(nx, ny, nw, nh);
-  page.setMediaBox(nx, ny, nw, nh);
+  const media = page.getMediaBox();
+  const crop = page.getCropBox();
+  let x = Math.max(media.x, crop.x);
+  let y = Math.max(media.y, crop.y);
+  let width = Math.min(media.x + media.width, crop.x + crop.width) - x;
+  let height = Math.min(media.y + media.height, crop.y + crop.height) - y;
+  // Match pdf.js: an empty intersection falls back to the MediaBox.
+  if (width <= 0 || height <= 0) ({ x, y, width, height } = media);
+  const rotation = ((page.getRotation().angle % 360) + 360) % 360;
+  const toPdf = (u: number, v: number): [number, number] => {
+    switch (rotation) {
+      case 0: return [x + u * width, y + (1 - v) * height];
+      case 90: return [x + v * width, y + u * height];
+      case 180: return [x + (1 - u) * width, y + v * height];
+      case 270: return [x + (1 - v) * width, y + (1 - u) * height];
+      default: throw new Error("Unsupported page rotation");
+    }
+  };
+  const corners = [
+    toPdf(rect.x, rect.y), toPdf(rect.x + rect.width, rect.y),
+    toPdf(rect.x, rect.y + rect.height),
+    toPdf(rect.x + rect.width, rect.y + rect.height),
+  ];
+  const left = Math.min(...corners.map((p) => p[0]));
+  const bottom = Math.min(...corners.map((p) => p[1]));
+  const w = Math.max(...corners.map((p) => p[0])) - left;
+  const h = Math.max(...corners.map((p) => p[1])) - bottom;
+  if (w <= 0 || h <= 0) throw new Error("Empty crop area");
+  page.setCropBox(left, bottom, w, h);
+  page.setMediaBox(left, bottom, w, h);
 }
 
 async function loadOrThrow(input: Uint8Array) {

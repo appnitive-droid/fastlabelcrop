@@ -93,17 +93,27 @@ function classifyLoadError(err: unknown): PdfOpenError {
   );
 }
 
-async function loadDocument(data: Uint8Array) {
+async function loadDocument(data: Uint8Array, signal?: AbortSignal) {
   const pdfjs = await getPdfJs();
+  if (signal?.aborted) throw new RenderCancelled();
   const copy = new Uint8Array(data);
   // Clone into a fresh ArrayBuffer — pdf.js detaches (transfers) the buffer.
   const buf = copy.buffer.slice(0) as ArrayBuffer;
+  const task = pdfjs.getDocument({ data: new Uint8Array(buf) });
+  const abort = () => { void task.destroy().catch(() => {}); };
+  signal?.addEventListener("abort", abort, { once: true });
   try {
-    return await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
+    const doc = await task.promise;
+    if (signal?.aborted) { await doc.destroy(); throw new RenderCancelled(); }
+    return doc;
   } catch (err) {
+    if (signal?.aborted) throw new RenderCancelled();
+    await task.destroy().catch(() => {});
     // Log the real error for debugging; the UI shows the friendly message.
     console.error("[pdf] failed to open document:", err);
     throw classifyLoadError(err);
+  } finally {
+    signal?.removeEventListener("abort", abort);
   }
 }
 
@@ -147,10 +157,12 @@ export async function renderPageToCanvas(opts: {
   maxWidth?: number;
   /** when true, this run is stale — it must stop before touching the canvas */
   isStale?: () => boolean;
+  signal?: AbortSignal;
 }): Promise<{ width: number; height: number; numPages: number }> {
-  const { data, pageNumber = 1, canvas, scale = 2, maxWidth, isStale } = opts;
-  const stale = () => isStale?.() ?? false;
-  const doc = await loadDocument(data);
+  const { data, pageNumber = 1, canvas, scale = 2, maxWidth, isStale, signal } = opts;
+  const stale = () => Boolean(signal?.aborted || isStale?.());
+  const doc = await loadDocument(data, signal);
+  let cancelPaint: (() => void) | undefined;
   try {
     const page = await doc.getPage(Math.min(Math.max(1, pageNumber), doc.numPages));
     let viewport = page.getViewport({ scale });
@@ -172,9 +184,12 @@ export async function renderPageToCanvas(opts: {
     if (!ctx) throw new Error("Canvas not supported");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const task = page.render({ canvasContext: ctx, viewport });
+    cancelPaint = () => task.cancel();
+    signal?.addEventListener("abort", cancelPaint, { once: true });
     activeTasks.set(canvas, task);
     try {
       await task.promise;
+      if (stale()) throw new RenderCancelled();
     } finally {
       if (activeTasks.get(canvas) === task) activeTasks.delete(canvas);
     }
@@ -186,6 +201,7 @@ export async function renderPageToCanvas(opts: {
     if (err instanceof PdfOpenError) throw err;
     throw classifyLoadError(err);
   } finally {
+    if (cancelPaint) signal?.removeEventListener("abort", cancelPaint);
     await doc.destroy();
   }
 }
@@ -193,10 +209,14 @@ export async function renderPageToCanvas(opts: {
 /** Render first page to a small thumbnail data URL. */
 export async function renderThumbnail(
   data: Uint8Array,
-  targetWidth = 220
+  targetWidth = 220,
+  signal?: AbortSignal
 ): Promise<string> {
-  const doc = await loadDocument(data);
+  const doc = await loadDocument(data, signal);
+  const abort = () => { void doc.destroy().catch(() => {}); };
+  signal?.addEventListener("abort", abort, { once: true });
   try {
+    if (signal?.aborted) throw new RenderCancelled();
     const page = await doc.getPage(1);
     const base = page.getViewport({ scale: 1 });
     const scale = targetWidth / base.width;
@@ -212,10 +232,12 @@ export async function renderThumbnail(
     page.cleanup();
     return canvas.toDataURL("image/png");
   } catch (err) {
+    if (signal?.aborted) throw new RenderCancelled();
     console.error("[pdf] failed to render thumbnail:", err);
     if (err instanceof PdfOpenError) throw err;
     throw classifyLoadError(err);
   } finally {
+    signal?.removeEventListener("abort", abort);
     await doc.destroy();
   }
 }
@@ -229,10 +251,14 @@ export async function renderPageToImageData(opts: {
   data: Uint8Array;
   pageNumber: number;
   targetWidth?: number;
+  signal?: AbortSignal;
 }): Promise<{ pixels: Uint8ClampedArray; width: number; height: number }> {
-  const { data, pageNumber, targetWidth = 900 } = opts;
-  const doc = await loadDocument(data);
+  const { data, pageNumber, targetWidth = 900, signal } = opts;
+  const doc = await loadDocument(data, signal);
+  const abort = () => { void doc.destroy().catch(() => {}); };
+  signal?.addEventListener("abort", abort, { once: true });
   try {
+    if (signal?.aborted) throw new RenderCancelled();
     const total = doc.numPages;
     const page = await doc.getPage(Math.min(Math.max(1, pageNumber), total));
     const base = page.getViewport({ scale: 1 });
@@ -249,10 +275,12 @@ export async function renderPageToImageData(opts: {
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
     return { pixels: img.data, width: canvas.width, height: canvas.height };
   } catch (err) {
+    if (signal?.aborted) throw new RenderCancelled();
     console.error("[pdf] failed to render analysis image:", err);
     if (err instanceof PdfOpenError) throw err;
     throw classifyLoadError(err);
   } finally {
+    signal?.removeEventListener("abort", abort);
     await doc.destroy();
   }
 }
@@ -263,13 +291,37 @@ export interface PageTextLine {
   yTopNorm: number;
 }
 
+export async function getPdfSampleText(data: Uint8Array, signal?: AbortSignal): Promise<string> {
+  const doc = await loadDocument(data, signal);
+  const abort = () => { void doc.destroy().catch(() => {}); };
+  signal?.addEventListener("abort", abort, { once: true });
+  try {
+    const chunks: string[] = [];
+    for (let i = 1; i <= Math.min(doc.numPages, 3); i++) {
+      if (signal?.aborted) throw new RenderCancelled();
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      chunks.push(content.items.map((item) => "str" in item ? item.str : "").join(" "));
+      page.cleanup();
+    }
+    return chunks.join("\n");
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    await doc.destroy();
+  }
+}
+
 /** Extract text lines with normalized vertical positions (for anchor hints). */
 export async function getPageTextLines(
   data: Uint8Array,
-  pageNumber: number
+  pageNumber: number,
+  signal?: AbortSignal
 ): Promise<PageTextLine[]> {
-  const doc = await loadDocument(data);
+  const doc = await loadDocument(data, signal);
+  const abort = () => { void doc.destroy().catch(() => {}); };
+  signal?.addEventListener("abort", abort, { once: true });
   try {
+    if (signal?.aborted) throw new RenderCancelled();
     const total = doc.numPages;
     const page = await doc.getPage(Math.min(Math.max(1, pageNumber), total));
     const height = page.getViewport({ scale: 1 }).height || 1;
@@ -285,6 +337,7 @@ export async function getPageTextLines(
     }
     return lines;
   } finally {
+    signal?.removeEventListener("abort", abort);
     await doc.destroy();
   }
 }

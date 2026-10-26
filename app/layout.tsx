@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import NavigationFeedback from "@/components/ui/NavigationFeedback";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -81,7 +82,7 @@ export default function RootLayout({
             }),
           }}
         />
-        {children}
+        <NavigationFeedback>{children}</NavigationFeedback>
       </body>
     </html>
   );

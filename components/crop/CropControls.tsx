@@ -38,6 +38,8 @@ export default function CropControls({
   onReset,
   onCrop,
   busy,
+  actionLabel = "Crop PDF",
+  disabled = false,
 }: {
   rect: CropRect;
   onChange: (r: CropRect) => void;
@@ -46,6 +48,8 @@ export default function CropControls({
   onReset: () => void;
   onCrop: () => void;
   busy: boolean;
+  actionLabel?: string;
+  disabled?: boolean;
 }) {
   const set = (patch: Partial<CropRect>) =>
     onChange({
@@ -112,13 +116,13 @@ export default function CropControls({
       <div className="flex flex-col gap-2">
         <button
           onClick={onCrop}
-          disabled={busy}
+          disabled={busy || disabled}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-accent-700 active:scale-[0.99] disabled:opacity-60"
         >
           {busy && (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
           )}
-          {busy ? "Cropping your PDF…" : "Crop PDF"}
+          {busy ? "Cropping your PDF…" : actionLabel}
         </button>
         <button
           onClick={onReset}

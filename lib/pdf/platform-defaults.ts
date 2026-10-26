@@ -1,5 +1,9 @@
 export type Platform = "amazon" | "flipkart" | "meesho" | "manual";
 
+export function defaultKeepInvoices(platform: Platform | ""): boolean {
+  return platform === "meesho";
+}
+
 export interface CropRect {
   /** 0..1, top-left origin, relative to page */
   x: number;
@@ -27,7 +31,7 @@ export const PLATFORM_META: Record<
   meesho: {
     name: "Meesho",
     description:
-      "Thermal / A4 label with sort-code header. We pre-select the scannable slip at the top.",
+      "Keep the invoice, or choose Remove invoice to crop the shipping label.",
     accent: "bg-pink-100 text-pink-800",
   },
   manual: {

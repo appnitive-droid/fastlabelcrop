@@ -24,13 +24,15 @@ export default function SortablePdfCard({
   item,
   index,
   onRemove,
+  disabled = false,
 }: {
   item: MergeItem;
   index: number;
   onRemove: (id: string) => void;
+  disabled?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: item.id });
+    useSortable({ id: item.id, disabled });
 
   return (
     <div
@@ -57,6 +59,8 @@ export default function SortablePdfCard({
           {item.file.name}
         </p>
         <button
+          disabled={disabled}
+          aria-label={`Remove ${item.file.name}`}
           onClick={() => onRemove(item.id)}
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
