@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
-import Link from "@/components/ui/AppLink";
+import { notFound, permanentRedirect } from "next/navigation";
+import ToolGuide from "@/components/seo/ToolGuide";
 import SiteHeader, { SiteFooter } from "@/components/ui/SiteHeader";
-import { Alert, Spinner } from "@/components/ui/primitives";
+import { Spinner } from "@/components/ui/primitives";
 import {
   PLATFORM_META,
   isPlatform,
@@ -26,9 +27,9 @@ const CROP_METADATA: Record<Platform, { title: string; description: string }> = 
       "Free online tool to crop Amazon shipping labels from your PDF — labels on odd pages, invoices on even. Extract print-ready labels in-browser. Private, no uploads.",
   },
   flipkart: {
-    title: "Crop Flipkart Shipping Labels from PDF Online",
+    title: "Free Flipkart Label Cropper Online",
     description:
-      "Free online tool to crop Flipkart shipping labels from PDFs — auto-detects the dotted separator and keeps just the shipping label. Private, in-browser, no uploads.",
+      "Crop Flipkart shipping label PDFs for free. Automatically detect the label-invoice separator and download cropped labels. No sign-up or server uploads.",
   },
   meesho: {
     title: "Crop Meesho Shipping Labels from PDF Online",
@@ -49,10 +50,7 @@ export function generateMetadata({
 }): Metadata {
   const slug = params.platform?.toLowerCase() || "";
   if (!isPlatform(slug)) {
-    return {
-      title: "Unknown platform",
-      robots: { index: false, follow: true },
-    };
+    notFound();
   }
   const platform = slug as Platform;
   const meta = CROP_METADATA[platform];
@@ -100,27 +98,10 @@ const ManualFlow = dynamic(() => import("@/components/crop/ManualFlow"), {
 
 export default function CropPlatformPage({ params }: { params: { platform: string } }) {
   const slug = params.platform?.toLowerCase() || "";
-  const valid = isPlatform(slug);
-  const platform: Platform = valid ? (slug as Platform) : "amazon";
+  if (!isPlatform(slug)) notFound();
+  if (params.platform !== slug) permanentRedirect(`/crop/${slug}`);
+  const platform: Platform = slug;
   const meta = PLATFORM_META[platform];
-
-  if (!valid) {
-    return (
-      <div className="min-h-screen">
-        <SiteHeader title="Unknown platform" subtitle="That label type doesn't exist." />
-        <main className="container-x py-12">
-          <Alert
-            title="Unknown label platform"
-            message={`"${params.platform}" isn't a supported option. Choose Amazon, Flipkart, Meesho or Manual.`}
-          />
-          <Link href="/" className="mt-6 inline-block text-sm font-semibold text-accent-700 hover:underline">
-            ← Back to Dashboard
-          </Link>
-        </main>
-        <SiteFooter />
-      </div>
-    );
-  }
 
   if (platform === "amazon") {
     return (
@@ -133,6 +114,7 @@ export default function CropPlatformPage({ params }: { params: { platform: strin
         />
         <main className="container-x animate-fadeIn py-8">
           <AmazonFlow />
+          <ToolGuide tool={platform} />
         </main>
         <SiteFooter />
       </div>
@@ -143,13 +125,14 @@ export default function CropPlatformPage({ params }: { params: { platform: strin
     return (
       <div className="min-h-screen">
         <SiteHeader
-          title="Crop Flipkart Label"
+          title="Free Flipkart Label Cropper"
           subtitle="Upload your label PDF and get print-ready shipping labels."
           logoSrc={platformLogo(platform)}
           logoAlt="Flipkart"
         />
         <main className="container-x animate-fadeIn py-8">
           <FlipkartFlow />
+          <ToolGuide tool={platform} />
         </main>
         <SiteFooter />
       </div>
@@ -172,6 +155,7 @@ export default function CropPlatformPage({ params }: { params: { platform: strin
       />
       <main className="container-x animate-fadeIn py-8">
         <ManualFlow platform={platform} />
+        <ToolGuide tool={platform} />
       </main>
       <SiteFooter />
     </div>

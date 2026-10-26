@@ -4,7 +4,7 @@ export function Hero() {
   return (
     <section className="animate-fadeUp pt-8 text-center sm:pt-10">
       <h1 className="mx-auto max-w-2xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-        Crop Shipping Labels &amp; Merge PDFs Online
+        Free Shipping Label Cropper &amp; PDF Merger
       </h1>
       <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-500">
         Free online tool for e-commerce sellers to crop Flipkart, Amazon and
@@ -27,7 +27,7 @@ const PLATFORMS = [
     slug: "flipkart",
     name: "Flipkart",
     logo: "/flipkart.png",
-    desc: "Get print-ready shipping labels instantly.",
+    desc: "Crop Flipkart shipping labels from PDFs for free. Automatically separate labels from invoices.",
     cta: "Crop Flipkart Label",
   },
   {

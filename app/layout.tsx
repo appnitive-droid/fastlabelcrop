@@ -6,7 +6,7 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} — Crop Shipping Labels & Merge PDFs Online`,
+    default: `Free Shipping Label Cropper & PDF Merger | ${SITE_NAME}`,
     template: `%s | ${SITE_NAME}`,
   },
   description:
@@ -31,13 +31,13 @@ export const metadata: Metadata = {
     locale: "en_IN",
     url: "/",
     siteName: SITE_NAME,
-    title: `${SITE_NAME} — Crop Shipping Labels & Merge PDFs Online`,
+    title: `Free Shipping Label Cropper & PDF Merger | ${SITE_NAME}`,
     description:
       "Crop Flipkart, Amazon and Meesho shipping labels from PDFs and merge PDFs online. Free, fast and private — files never leave your browser.",
   },
   twitter: {
     card: "summary",
-    title: `${SITE_NAME} — Crop Shipping Labels & Merge PDFs Online`,
+    title: `Free Shipping Label Cropper & PDF Merger | ${SITE_NAME}`,
     description:
       "Crop Flipkart, Amazon and Meesho shipping labels from PDFs and merge PDFs online. Free, fast and private.",
   },
